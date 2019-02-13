@@ -14,6 +14,7 @@ class EventTypes(Enum):
     PICAM_MOTION = "PICAM_MOTION"
     SWITCH_PLAYER = "SWITCH_PLAYER"
     IGNORE_PERIOD = "IGNORE_PERIOD"
+    PING = "PING"
 
 
 class ThreadKill:
@@ -35,14 +36,14 @@ def switch_player(gs, name):
     gs.set_current_player(name)
     return name, add_new
 
-def aws_switch_player(gs, ui, client, userdata, message):
-    payload = json.loads(message.payload)
-    player_switched_to, is_new_player = switch_player(gs, payload['player'])
-    ui.refresh(gs, is_new_player, player_switched_to)
-    myMQTTClient.publish('golf/update', json.dumps(get_message_dict(gs)), 0)
+def aws_switch_player(event_queue, client, userdata, message):
+    print('aws switch player')
+    payload = json.loads(message.payload.decode())
+    event_queue.put((EventTypes.SWITCH_PLAYER, payload['player']))
 
-def aws_ping(gs, client, userdata, message):
-    myMQTTClient.publish('golf/update', json.dumps(get_message_dict(gs)), 0)
+def aws_ping(event_queue, client, userdata, message):
+    print('aws ping')
+    event_queue.put((EventTypes.PING,))
 
 def get_message_dict(gs, made=None):
     d = {}
@@ -52,6 +53,8 @@ def get_message_dict(gs, made=None):
     d['currentPlayer'] = current_player
     p_list = []
     for row in player_stats:
+        row = list(row)
+        row[1] = row[1] if row[1] is not None else 0
         if row[0] == current_player:
             text = text.format(row[0], row[1], row[2], round(((row[1] / row[2]) * 100) if row[2] != 0 else 0, 2))
         p_list.append({'name': row[0], 'made': row[1], 'ratio': (row[1] / row[2]) if row[2] != 0 else 0})
@@ -66,26 +69,30 @@ def event_loop(event_queue, ui):
     gs = game_state.GameState()
     ignore_period = None
 
-    # For certificate based connection
-    myMQTTClient = AWSIoTMQTTClient("pi")
+    # for certificate based connection
+    myMQTTClient = AWSIoTMQTTClient("pi", useWebsocket=True)
     # For Websocket connection
     # myMQTTClient = AWSIoTMQTTClient("myClientID", useWebsocket=True)
     # Configurations
     # For TLS mutual authentication
-    myMQTTClient.configureEndpoint("a1h19cgwtbfelq-ats.iot.us-west-2.amazonaws.com", 8883)
+    myMQTTClient.configureEndpoint("a1h19cgwtbfelq-ats.iot.us-west-2.amazonaws.com", 443)
     # For Websocket
     # myMQTTClient.configureEndpoint("YOUR.ENDPOINT", 443)
     # For TLS mutual authentication with TLS ALPN extension
     # myMQTTClient.configureEndpoint("YOUR.ENDPOINT", 443)
-    myMQTTClient.configureCredentials("ca.pem", "41fce67d5c-private.pem.key", "41fce67d5c-certificate.pem.crt")
+    myMQTTClient.configureIAMCredentials("AKIAIIGLSJNVG542MM3A", "3RiA1UBEBmMzZTQr2a4lDRD1YqcuXp2D0kFLp+8O")
+    myMQTTClient.configureCredentials("ca.pem")
     # For Websocket, we only need to configure the root CA
     # myMQTTClient.configureCredentials("YOUR/ROOT/CA/PATH")
     myMQTTClient.configureOfflinePublishQueueing(-1)  # Infinite offline Publish queueing
     myMQTTClient.configureDrainingFrequency(2)  # Draining: 2 Hz
     myMQTTClient.configureConnectDisconnectTimeout(10)  # 10 sec
     myMQTTClient.configureMQTTOperationTimeout(5)  # 5 sec
-    myMQTTClient.subscribe('golf/switchPlayer', 0, functools.partial(aws_switch_player, gs, ui))
-    myMQTTClient.subscribe('golf/ping', 0, functools.partial(aws_ping, gs))
+    myMQTTClient.connect()
+    print('connected')
+    myMQTTClient.subscribe('golf/switchPlayer', 0, functools.partial(aws_switch_player, event_queue))
+    myMQTTClient.subscribe('golf/ping', 0, functools.partial(aws_ping, event_queue))
+    print('subscribed')
     while True:
         print('event: event_queue waiting')
         event = event_queue.get()
@@ -122,4 +129,5 @@ def event_loop(event_queue, ui):
         elif event[0] == EventTypes.SWITCH_PLAYER:
             player_switched_to, is_new_player = switch_player(gs, event[1])
             ui.refresh(gs, is_new_player, player_switched_to)
+        if event[0] in (EventTypes.SWITCH_PLAYER, EventTypes.PING):
             myMQTTClient.publish('golf/update', json.dumps(get_message_dict(gs)), 0)

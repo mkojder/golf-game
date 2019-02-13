@@ -33,7 +33,6 @@ def main():
     event_queue_thread = threading.Thread(
         target=events.event_loop, args=(event_queue, game_ui))
     event_queue_thread.start()
-
     root.mainloop()
     input_queue.put(None)
     event_queue.put(None)

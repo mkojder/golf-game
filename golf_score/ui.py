@@ -79,5 +79,7 @@ class UI(Frame):
                         self.listbox.insert(END, val)
 
             ind = self.listbox.get(0, END).index(current_player)
+            self.listbox.selection_clear(0, END)
             self.listbox.selection_set(ind)
+            self.current = self.listbox.curselection()
 
