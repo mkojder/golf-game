@@ -65,6 +65,20 @@ class GameState:
         ''', (dt, player, made_shot))
         self.conn.commit()
 
+    def get_all_player_stats(self, begin_inclusive=None, end_inclusive=None):
+        q = 'SELECT name, SUM(made), COUNT(made) FROM players JOIN shots ON name = player_name GROUP BY name'
+        params = []
+        if begin_inclusive is not None or end_inclusive is not None:
+            q += ' WHERE '
+            if begin_inclusive is not None:
+                q += 'datetime >= ?'
+                params.append(begin_inclusive)
+            if end_inclusive is not None:
+                q += 'datetime <= ?' if begin_inclusive is None else ' AND datetime <= ?'
+                params.append(end_inclusive)
+        self.cursor.execute(q, params)
+        return [x for x in self.cursor.fetchall()]
+
     def get_player_stats(self, player=None, begin_inclusive=None, end_inclusive=None):
         if player is None:
             player = self._current_player
