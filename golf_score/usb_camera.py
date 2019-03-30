@@ -14,16 +14,16 @@ import events
 
 
 THRESHOLD0 = .72
-THRESHOLD1 = .8
+THRESHOLD1 = .9
 
 
 def capture_from_usb(event_queue, kill_queue, cam_num):
     THRESHOLD=THRESHOLD0 if cam_num == 0 else THRESHOLD1
     process = subprocess.Popen(
-        ['ffmpeg -loglevel panic -f v4l2 -r 20 -video_size 320x180 -i /dev/video{} -f mjpeg -'.format(cam_num)], stdout=subprocess.PIPE, shell=True, bufsize=10**8)
+        ['ffmpeg -loglevel panic -f v4l2 -r 15 -video_size 320x180 -i /dev/video{} -f mjpeg -'.format(cam_num)], stdout=subprocess.PIPE, shell=True, bufsize=10**8)
     bytes_str = b''
     last_img = None
-    last_three = []
+    last_two = []
     total = 0
     stopped = False
     stop_time = None
@@ -46,13 +46,13 @@ def capture_from_usb(event_queue, kill_queue, cam_num):
             if last_img is not None:
                 score, _ = measure.compare_ssim(
                     img, last_img, full=True)
-                if len(last_three) == 3:
-                    total -= last_three.pop(0)
-                last_three.append(score)
+                if len(last_two) == 2:
+                    total -= last_two.pop(0)
+                last_two.append(score)
                 total += score
-                if not stopped and len(last_three) == 3 and total / 3 < THRESHOLD:
-                    print(total/3)
-                    print(last_three)
+                if not stopped and len(last_two) == 3 and total / 2 < THRESHOLD:
+                    print(total/2)
+                    print(last_two)
                     print('motion detected usb {} !'.format(cam_num))
                     event_queue.put(
                         (events.EventTypes.USB_MOTION0 if cam_num == 0 else events.EventTypes.USB_MOTION1, datetime.datetime.now()))
