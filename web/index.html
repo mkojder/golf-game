@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html style="margin:0px;min-height:100%;width:100%">
+  <head>
+    <meta charset="UTF-8">
+    <title>title</title>
+    <style>
+        #feedback { font-size: 1.4em; }
+        #listbox .ui-selecting { background: #FECA40; }
+        #listbox .ui-selected { background: #F39814; color: white; }
+        #listbox { list-style-type: none; margin: 0; padding: 0; width: 60%; }
+        #listbox li { margin: 3px; padding: 0.4em; font-size: 3em; height: 50px; line-height: 50px }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+        th, td {
+          text-align: left;
+          padding: 8px;
+        }
+        tr:nth-child(even) {background-color: #f2f2f2;}
+    </style>
+  </head>
+  <body style="margin:0px;min-height:100%;width:100%">
+  <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.11.2/moment.min.js" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/components/core-min.js" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/components/hmac-min.js" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/components/sha256-min.js" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+  <script type="text/javascript">
+  function SigV4Utils(){}
+
+      SigV4Utils.sign = function(key, msg) {
+          var hash = CryptoJS.HmacSHA256(msg, key);
+          return hash.toString(CryptoJS.enc.Hex);
+        };
+
+        SigV4Utils.sha256 = function(msg) {
+          var hash = CryptoJS.SHA256(msg);
+          return hash.toString(CryptoJS.enc.Hex);
+        };
+
+        SigV4Utils.getSignatureKey = function(key, dateStamp, regionName, serviceName) {
+          var kDate = CryptoJS.HmacSHA256(dateStamp, 'AWS4' + key);
+          var kRegion = CryptoJS.HmacSHA256(regionName, kDate);
+          var kService = CryptoJS.HmacSHA256(serviceName, kRegion);
+          var kSigning = CryptoJS.HmacSHA256('aws4_request', kService);
+          return kSigning;
+        };
+
+        function createEndpoint(regionName, awsIotEndpoint, accessKey, secretKey) {
+          var time = moment.utc();
+          var dateStamp = time.format('YYYYMMDD');
+          var amzdate = dateStamp + 'T' + time.format('HHmmss') + 'Z';
+          var service = 'iotdevicegateway';
+          var region = regionName;
+          var secretKey = secretKey;
+          var accessKey = accessKey;
+          var algorithm = 'AWS4-HMAC-SHA256';
+          var method = 'GET';
+          var canonicalUri = '/mqtt';
+          var host = awsIotEndpoint;
+          var credentialScope = dateStamp + '/' + region + '/' + service + '/' + 'aws4_request';
+          var canonicalQuerystring = 'X-Amz-Algorithm=AWS4-HMAC-SHA256';
+          canonicalQuerystring += '&X-Amz-Credential=' + encodeURIComponent(accessKey + '/' + credentialScope);
+          canonicalQuerystring += '&X-Amz-Date=' + amzdate;
+          canonicalQuerystring += '&X-Amz-SignedHeaders=host';
+          var canonicalHeaders = 'host:' + host + '\n';
+          var payloadHash = SigV4Utils.sha256('');
+          var canonicalRequest = method + '\n' + canonicalUri + '\n' + canonicalQuerystring + '\n' + canonicalHeaders + '\nhost\n' + payloadHash;
+          var stringToSign = algorithm + '\n' +  amzdate + '\n' +  credentialScope + '\n' +  SigV4Utils.sha256(canonicalRequest);
+          var signingKey = SigV4Utils.getSignatureKey(secretKey, dateStamp, region, service);
+          var signature = SigV4Utils.sign(signingKey, stringToSign);
+          canonicalQuerystring += '&X-Amz-Signature=' + signature;
+          return 'wss://' + host + canonicalUri + '?' + canonicalQuerystring;
+        }
+        var search = location.search.substring(1);
+        obj = JSON.parse('{"' + search.replace(/&/g, '","').replace(/=/g,'":"') + '"}', function(key, value) { return key===""?value:decodeURIComponent(value) });
+        var endpoint = createEndpoint(
+        obj.region, //'eu-central-1',  // YOUR REGION
+        obj.endpoint,//'xxxxxx.iot.eu-central-1.amazonaws.com', // YOUR IoT ENDPOINT  
+        obj.accessKey, //accesskey, // YOUR ACCESS KEY    
+        obj.secretKey); //secretkey); // YOUR SECRET ACCESS KEY   
+
+        var clientId = Math.random().toString(36).substring(7);
+        var client = new Paho.MQTT.Client(endpoint, clientId);
+        var connectOptions = {
+          useSSL: true,
+          timeout: 3,
+          mqttVersion: 4,
+          onSuccess: subscribe
+        };
+        client.connect(connectOptions);
+        client.onMessageArrived = onMessage;
+        client.onConnectionLost = function(e) {
+           console.log(e) 
+        };
+
+
+        function subscribe() {
+          client.subscribe("golf/update");
+          console.log("subscribed");
+          var obj = {
+            'origin': 'browser'
+          }
+          var message = new Paho.MQTT.Message(JSON.stringify(obj));
+          message.destinationName = "golf/ping";
+          client.send(message);
+        }
+
+        function onMessage(message) {
+          var status = JSON.parse(message.payloadString);
+          console.log(status);
+
+          $("#text").text(status.display);
+
+          if (status.hasOwnProperty('madeShot')) {
+            var made = status.madeShot;
+            var intervalId = null;
+            var varCounter = 0;
+            var color = null;
+            var updateRgb = function(){
+                if(varCounter < 100) {
+                  $(document.body).css('background', 'rgba(' + color + ','+ (1 - (varCounter / 100)) +')');
+                  varCounter++;
+                } else {
+                    $(document.body).css('background', '');
+                    varCounter = 0;
+                    clearInterval(intervalId);
+                }
+            };
+            if (made) {
+              color = '0,255,0';
+            } else {
+              color = '255,0,0';
+            }
+            intervalId = setInterval(updateRgb, 10);
+          }
+          if ($('#listbox').hasClass('ui-selectable')) {
+            $('#listbox').selectable('destroy');
+          }
+          $("#listbox").empty();
+          $.each(status.players, function(index, values) {
+            var value = values.name;
+            $('#listbox').append('<li>' + value + '</li>');
+            if (value === status.currentPlayer) {
+              $('#listbox').children().last().addClass('ui-selected');
+            }
+          });
+          $('#listbox').selectable({
+            selected: function(event, ui) { 
+                $(ui.selected).addClass("ui-selected").siblings().removeClass("ui-selected");
+                console.log(ui.selected.textContent); 
+                var obj = {
+                  'player': ui.selected.textContent
+                }
+                var message = new Paho.MQTT.Message(JSON.stringify(obj));
+                message.destinationName = "golf/switchPlayer";
+                client.send(message);      
+            },
+            _destroy: function () 
+            {
+                this.selectable.remove();
+            }
+          });
+          $("#newName").css("visibility", "");
+          $("#submit").css("visibility", "");
+          $("#header").css("visibility", "");
+          status.players.sort(function(a, b) {
+            if (a.ratio === b.ratio) {
+              return b.made - a.made;
+            }
+            return b.ratio - a.ratio;
+          });
+          $('#leaderboard').empty()
+          $('#leaderboard').append("<tr><td>Name</td><td>Percent made</td><td>Number made</td></tr>")
+          $.each(status.players, function(index, values) {
+            var value = "<tr><td>" + values.name + "</td><td>" + (+(values.ratio * 100).toFixed(2)) + "&percnt;</td><td>" + values.made + "</td></tr>"
+            $('#leaderboard').append(value);
+          });
+        }
+        function submitNew() {
+          var text = $.trim($('#newName').val());
+          if (text !== '') {
+            console.log(text); 
+            var obj = {
+              'player': text
+            }
+            var message = new Paho.MQTT.Message(JSON.stringify(obj));
+            message.destinationName = "golf/switchPlayer";
+            client.send(message);
+            $("#newName").val("");
+          }
+        }
+  </script>
+  <div id="text" style="font-size:120px"></div>
+  <ol id="listbox"></ol>
+  <input type="text" id="newName" style="visibility: hidden; height:50px; font-size:3em; line-height: 50px">
+  <input type="submit" id="submit" onclick="submitNew()" style="visibility: hidden; height: 56px; vertical-align:top">
+  <h2 id="header" style="visibility: hidden">Leaderboard</h2>
+  <table id="leaderboard"></table>
+  </body>
+</html>
