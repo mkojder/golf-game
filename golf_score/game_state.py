@@ -59,7 +59,7 @@ class GameState:
 
     def get_player_from_uid(self, uid):
         self.cursor.execute('''SELECT name FROM players
-        WHERE uid=?)
+        WHERE uid=?
         ''', (uid,))
         name = self.cursor.fetchone()
         if name is None:
@@ -78,7 +78,7 @@ class GameState:
         if player is None:
             player = self._current_player
         self.cursor.execute('''SELECT uid FROM players
-        WHERE name=?)
+        WHERE name=?
         ''', (player,))
         uid = self.cursor.fetchone()
         if uid is None:

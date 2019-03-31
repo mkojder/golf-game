@@ -34,7 +34,7 @@ def main():
     event_queue_thread = threading.Thread(
         target=events.event_loop, args=(event_queue, game_ui))
     event_queue_thread.start()
-    event_queue.put((EventTypes.PING,))
+    event_queue.put((events.EventTypes.PING,))
     if root is not None:
         root.mainloop()
     else:
@@ -50,6 +50,7 @@ def main():
     event_queue_thread.join()
     usb_loop0.join()
     usb_loop1.join()
+    rfid_loop.join()
 
 def ui_setup(event_queue):
     root = Tk()
