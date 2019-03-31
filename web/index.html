@@ -167,6 +167,7 @@
           $("#newName").css("visibility", "");
           $("#submit").css("visibility", "");
           $("#header").css("visibility", "");
+          $("#restart").css("visibility", "");
           status.players.sort(function(a, b) {
             if (a.ratio === b.ratio) {
               return b.made - a.made;
@@ -193,11 +194,20 @@
             $("#newName").val("");
           }
         }
+        function sendRestart() {
+          var message = new Paho.MQTT.Message(JSON.stringify(obj));
+          message.destinationName = "golf/quit";
+          client.send(message);
+          location.reload();
+        }
+        
   </script>
   <div id="text" style="font-size:120px"></div>
   <ol id="listbox"></ol>
   <input type="text" id="newName" style="visibility: hidden; height:50px; font-size:3em; line-height: 50px">
   <input type="submit" id="submit" onclick="submitNew()" style="visibility: hidden; height: 56px; vertical-align:top">
+  <br>
+  <input type="submit" value="Restart RPi" id="restart" onclick="sendRestart()" style="visibility: hidden; height: 56px; vertical-align:top">
   <h2 id="header" style="visibility: hidden">Leaderboard</h2>
   <table id="leaderboard"></table>
   </body>
