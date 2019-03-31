@@ -46,5 +46,5 @@ def run_picamera_loop(event_queue, thread_kill):
                 '/dev/null', format='h264', motion_output=output)
             while not thread_kill.is_kill():
                 camera.wait_recording()
-                time.sleep(.1)
+                time.sleep(.2)
             camera.stop_recording()

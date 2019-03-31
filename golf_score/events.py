@@ -15,6 +15,7 @@ class EventTypes(Enum):
     SWITCH_PLAYER = "SWITCH_PLAYER"
     IGNORE_PERIOD = "IGNORE_PERIOD"
     PING = "PING"
+    RFID_SCAN = "RFID_SCAN"
 
 
 class ThreadKill:
@@ -65,7 +66,7 @@ def get_message_dict(gs, made=None):
     return d
         
 
-def event_loop(event_queue, ui):
+def event_loop(event_queue, ui=None):
     gs = game_state.GameState()
     ignore_period = None
 
@@ -125,9 +126,24 @@ def event_loop(event_queue, ui):
                     gs.add_shot(event[1], False)
                     myMQTTClient.publish('golf/update', json.dumps(get_message_dict(gs, False)), 0)
                     break
-            ui.refresh(gs)
+            if ui is not None:
+                ui.refresh(gs)
         elif event[0] == EventTypes.SWITCH_PLAYER:
             player_switched_to, is_new_player = switch_player(gs, event[1])
-            ui.refresh(gs, is_new_player, player_switched_to)
+            if ui is not None:
+                ui.refresh(gs, is_new_player, player_switched_to)
+        elif event[0] == EventTypes.RFID_SCAN:
+            uid = event[1]
+            player = gs.get_player_from_uid(uid)
+            if player is None:
+                if gs.get_uid_for_player() is None:
+                    print('event: setting id {} for current player'.format(uid))
+                    gs.set_uid_for_player(uid)
+                else:
+                    print('event: RFID UID not recognized')
+            else:
+                print('event: switch to {} from rfid'.format(player))
+                event_queue.put((EventTypes.SWITCH_PLAYER, player))
+
         if event[0] in (EventTypes.SWITCH_PLAYER, EventTypes.PING):
             myMQTTClient.publish('golf/update', json.dumps(get_message_dict(gs)), 0)

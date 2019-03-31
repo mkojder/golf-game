@@ -23,7 +23,7 @@ class GameState:
         self.cursor = self.conn.cursor()
         cursor = self.cursor
         cursor.execute('''CREATE TABLE players
-        (name text)
+        (name text, uid text)
         ''')
         cursor.execute('''CREATE TABLE shots
         (datetime timestamp, player_name text, made integer)
@@ -53,9 +53,37 @@ class GameState:
 
     def add_new_player(self, name):
         self.cursor.execute('''INSERT INTO players VALUES 
-        (?)
+        (?, '')
         ''', (name,))
         self.conn.commit()
+
+    def get_player_from_uid(self, uid):
+        self.cursor.execute('''SELECT name FROM players
+        WHERE uid=?)
+        ''', (uid,))
+        name = self.cursor.fetchone()
+        if name is None:
+            return None
+        return name[0]
+
+    def set_uid_for_player(self, uid, player=None):
+        if player is None:
+            player = self._current_player
+        self.cursor.execute('''UPDATE players SET uid=?
+        WHERE name=? 
+        ''', (uid, player))
+        self.conn.commit()
+
+    def get_uid_for_player(self, player=None):
+        if player is None:
+            player = self._current_player
+        self.cursor.execute('''SELECT uid FROM players
+        WHERE name=?)
+        ''', (player,))
+        uid = self.cursor.fetchone()
+        if uid is None:
+            raise ValueError('Player: {} not found'.format(player))
+        return uid[0]
 
     def add_shot(self, dt, made_shot, player=None):
         if player is None:
