@@ -114,9 +114,9 @@ def event_loop(event_queue, ui=None):
             while True:
                 try:
                     next_event = event_queue.get(timeout=remaining_time.total_seconds())
-                    if event[0] == EventTypes.USB_MOTION0:
+                    if next_event[0] == EventTypes.USB_MOTION0:
                         pass
-                    elif event[0] != EventTypes.USB_MOTION1 and event[0] != EventTypes.PICAM_MOTION:
+                    elif next_event[0] != EventTypes.USB_MOTION1 and next_event[0] != EventTypes.PICAM_MOTION:
                         deferred_events.append(event)
                     else:
                         remaining_time -= next_event[1] - event[1]
