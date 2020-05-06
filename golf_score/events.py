@@ -81,7 +81,7 @@ def event_loop(event_queue, ui=None):
     # myMQTTClient.configureEndpoint("YOUR.ENDPOINT", 443)
     # For TLS mutual authentication with TLS ALPN extension
     # myMQTTClient.configureEndpoint("YOUR.ENDPOINT", 443)
-    myMQTTClient.configureIAMCredentials("AKIAIIGLSJNVG542MM3A", "3RiA1UBEBmMzZTQr2a4lDRD1YqcuXp2D0kFLp+8O")
+    myMQTTClient.configureIAMCredentials("insert here", "insert here")
     myMQTTClient.configureCredentials("ca.pem")
     # For Websocket, we only need to configure the root CA
     # myMQTTClient.configureCredentials("YOUR/ROOT/CA/PATH")
