@@ -50,7 +50,7 @@ def capture_from_usb(event_queue, kill_queue, cam_num):
                     total -= last_two.pop(0)
                 last_two.append(score)
                 total += score
-                if not stopped and len(last_two) == 3 and total / 2 < THRESHOLD:
+                if not stopped and len(last_two) == 2 and total / 2 < THRESHOLD:
                     print(total/2)
                     print(last_two)
                     print('motion detected usb {} !'.format(cam_num))

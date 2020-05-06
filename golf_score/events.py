@@ -46,6 +46,10 @@ def aws_ping(event_queue, client, userdata, message):
     print('aws ping')
     event_queue.put((EventTypes.PING,))
 
+def aws_quit(event_queue, client, userdata, message):
+    print('aws quit')
+    event_queue.put(None)
+
 def get_message_dict(gs, made=None):
     d = {}
     text = "{} made {}\n out of {}\n{}%"
@@ -93,6 +97,7 @@ def event_loop(event_queue, ui=None):
     print('connected')
     myMQTTClient.subscribe('golf/switchPlayer', 0, functools.partial(aws_switch_player, event_queue))
     myMQTTClient.subscribe('golf/ping', 0, functools.partial(aws_ping, event_queue))
+    myMQTTClient.subscribe('golf/quit', 0, functools.partial(aws_quit, event_queue))
     print('subscribed')
     while True:
         print('event: event_queue waiting')
@@ -105,11 +110,14 @@ def event_loop(event_queue, ui=None):
         elif event[0] == EventTypes.USB_MOTION0 and (ignore_period is None or event[1] - ignore_period > datetime.timedelta(seconds=4)):
             print('event:start motion')
             remaining_time = datetime.timedelta(seconds=3.75)
+            deferred_events = []
             while True:
                 try:
                     next_event = event_queue.get(timeout=remaining_time.total_seconds())
-                    if event[0] == EventTypes.SWITCH_PLAYER:
-                        switch_player(gs, event[1])
+                    if next_event[0] == EventTypes.USB_MOTION0:
+                        pass
+                    elif next_event[0] != EventTypes.USB_MOTION1 and next_event[0] != EventTypes.PICAM_MOTION:
+                        deferred_events.append(event)
                     else:
                         remaining_time -= next_event[1] - event[1]
                         if next_event is None:
@@ -126,6 +134,7 @@ def event_loop(event_queue, ui=None):
                     gs.add_shot(event[1], False)
                     myMQTTClient.publish('golf/update', json.dumps(get_message_dict(gs, False)), 0)
                     break
+            [event_queue.put(e) for e in deferred_events]
             if ui is not None:
                 ui.refresh(gs)
         elif event[0] == EventTypes.SWITCH_PLAYER:
@@ -136,7 +145,7 @@ def event_loop(event_queue, ui=None):
             uid = event[1]
             player = gs.get_player_from_uid(uid)
             if player is None:
-                if gs.get_uid_for_player() is None:
+                if gs.get_uid_for_player() == '':
                     print('event: setting id {} for current player'.format(uid))
                     gs.set_uid_for_player(uid)
                 else:
